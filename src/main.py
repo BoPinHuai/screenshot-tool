@@ -1,22 +1,34 @@
-# main.py — Stage 4 入口
-# 运行：python src/main.py
+# main.py — Stage 5 入口
+# 运行（开发）：python src/main.py
+# 运行（打包）：直接双击 ScreenshotTool.exe
 #
 # 启动流程：
-#   1. 设置 DPI awareness
-#   2. 加载 config
-#   3. 创建隐藏 CTk 根窗口（customtkinter 主题初始化）
-#   4. 创建 SettingsPanel（初始隐藏）
-#   5. 创建 FloatingBall（常驻桌面）
-#   6. mainloop()
+#   1. 单实例检查（已有实例则退出）
+#   2. 设置 DPI awareness
+#   3. 加载 config
+#   4. 创建隐藏 CTk 根窗口
+#   5. 创建 SettingsPanel（初始隐藏）
+#   6. 创建 FloatingBall（常驻桌面）
+#   7. mainloop()
 
 import sys
 import os
 import ctypes
 
-sys.path.insert(0, os.path.dirname(__file__))
+# ── 路径修复：兼容开发模式和 PyInstaller 打包模式 ──────────────────────────────
+if getattr(sys, "frozen", False):
+    # 打包后：模块文件在 PyInstaller 解压的临时目录
+    _BASE = sys._MEIPASS
+else:
+    # 开发模式：模块文件在 src/ 目录
+    _BASE = os.path.dirname(os.path.abspath(__file__))
+
+sys.path.insert(0, _BASE)
+# ──────────────────────────────────────────────────────────────────────────────
 
 import config
 import customtkinter as ctk
+from utils import ensure_single_instance
 from ui.settings import SettingsPanel
 from ui.floating_ball import FloatingBall
 
@@ -32,25 +44,22 @@ def _set_dpi_awareness() -> None:
 
 
 def main() -> None:
+    ensure_single_instance()      # 多开时直接退出
     _set_dpi_awareness()
+
     cfg = config.load()
     os.makedirs(cfg["save_dir"], exist_ok=True)
 
-    # 隐藏根窗口（仅用于托管子窗口，不显示）
     root = ctk.CTk()
     root.withdraw()
 
-    # 设置面板（初始隐藏，单击悬浮球后弹出）
     panel = SettingsPanel(root, cfg)
 
-    # 退出回调：注销快捷键 → 销毁根窗口（同时关闭所有子窗口）
     def on_quit() -> None:
         panel.quit_cleanup()
         root.destroy()
 
-    # 悬浮球（常驻桌面）
     FloatingBall(root, panel, cfg, on_quit)
-
     root.mainloop()
 
 

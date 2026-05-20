@@ -14,6 +14,7 @@ import customtkinter as ctk
 
 import config as cfg_module
 import capture
+import utils
 from ui.selector import run_selector
 from hotkey import HotkeyManager
 
@@ -185,6 +186,7 @@ class SettingsPanel(ctk.CTkToplevel):
     def _build_bottom(self, parent: ctk.CTkFrame) -> None:
         parent.grid_columnconfigure(1, weight=1)
 
+        # 保存目录
         ctk.CTkLabel(parent, text="保存目录").grid(
             row=0, column=0, padx=_PAD, pady=(_PAD, 4), sticky="w")
         self._savedir_var = tk.StringVar(value=self._cfg.get("save_dir", ""))
@@ -194,15 +196,28 @@ class SettingsPanel(ctk.CTkToplevel):
                       command=self._browse_dir).grid(
             row=0, column=2, padx=(0, _PAD), pady=(_PAD, 4))
 
+        # 框选快捷键
         ctk.CTkLabel(parent, text="框选快捷键").grid(
-            row=1, column=0, padx=_PAD, pady=(0, _PAD), sticky="w")
+            row=1, column=0, padx=_PAD, pady=(0, 4), sticky="w")
         self._sel_hk_var = tk.StringVar(value=self._cfg.get("hotkey_select", ""))
         ctk.CTkEntry(parent, textvariable=self._sel_hk_var,
                      placeholder_text="例如  ctrl+alt+d").grid(
-            row=1, column=1, padx=4, pady=(0, _PAD), sticky="w")
+            row=1, column=1, padx=4, pady=(0, 4), sticky="w")
+
+        # 开机自启（仅打包后的 exe 有效，开发模式灰显）
+        self._autostart_var = tk.BooleanVar(value=utils.get_autostart())
+        autostart_cb = ctk.CTkCheckBox(
+            parent, text="开机自动启动",
+            variable=self._autostart_var,
+            state="normal" if utils.is_packaged() else "disabled",
+        )
+        autostart_cb.grid(row=2, column=0, columnspan=2,
+                          padx=_PAD, pady=(0, _PAD), sticky="w")
+
+        # 保存按钮
         ctk.CTkButton(parent, text="💾  保存配置", width=110,
                       command=self._save_config).grid(
-            row=1, column=2, padx=(0, _PAD), pady=(0, _PAD))
+            row=2, column=2, padx=(0, _PAD), pady=(0, _PAD))
 
     # ══════════════ 预设列表操作 ══════════════
 
@@ -320,4 +335,5 @@ class SettingsPanel(ctk.CTkToplevel):
         cfg_module.save(self._cfg)
         self._register_hotkeys()
         self._refresh_preset_list()
+        utils.set_autostart(self._autostart_var.get())
         messagebox.showinfo("已保存", "配置已保存，快捷键已重新注册。", parent=self)
