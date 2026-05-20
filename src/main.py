@@ -57,9 +57,11 @@ def main() -> None:
 
     def on_quit() -> None:
         panel.quit_cleanup()
+        ball.quit_cleanup()
         root.destroy()
 
-    FloatingBall(root, panel, cfg, on_quit)
+    ball = FloatingBall(root, panel, cfg, on_quit)
+    panel.set_ball(ball)    # 注入引用，截图后触发悬浮球通知
     root.mainloop()
 
 
