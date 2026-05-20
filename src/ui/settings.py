@@ -36,9 +36,10 @@ class SettingsPanel(ctk.CTkToplevel):
         self._sel_idx = -1
         self._aq: queue.Queue = queue.Queue()
         self._hk_mgr  = HotkeyManager()
+        self._ball    = None   # FloatingBall 引用，由 set_ball() 注入
 
         self.title("Kang — 设置")
-        self.geometry("740x530")
+        self.geometry("740x590")
         self.resizable(False, False)
         self.protocol("WM_DELETE_WINDOW", self.withdraw)  # 关闭 = 隐藏
 
@@ -50,6 +51,10 @@ class SettingsPanel(ctk.CTkToplevel):
             self._select_preset(0)
 
         self.withdraw()   # 初始隐藏，等悬浮球单击后再显示
+
+    def set_ball(self, ball) -> None:
+        """由 main.py 在 FloatingBall 创建后调用，注入悬浮球引用以发送通知。"""
+        self._ball = ball
 
     # ══════════════ 快捷键管理 ══════════════
 
@@ -80,8 +85,12 @@ class SettingsPanel(ctk.CTkToplevel):
                 act = self._aq.get_nowait()
                 if act[0] == "fixed":
                     capture.capture_region(act[1], self._cfg["save_dir"])
+                    if self._ball:
+                        self._ball.notify_capture()
                 elif act[0] == "select":
-                    capture.capture_select(self, self._cfg["save_dir"])
+                    ok = capture.capture_select(self, self._cfg["save_dir"])
+                    if ok and self._ball:
+                        self._ball.notify_capture()
         except queue.Empty:
             pass
         self.after(20, self._poll_queue)
@@ -204,6 +213,31 @@ class SettingsPanel(ctk.CTkToplevel):
                      placeholder_text="例如  ctrl+alt+d").grid(
             row=1, column=1, padx=4, pady=(0, 4), sticky="w")
 
+        # 悬浮球显隐热键
+        ctk.CTkLabel(parent, text="悬浮球热键").grid(
+            row=2, column=0, padx=_PAD, pady=(0, 4), sticky="w")
+        self._toggle_hk_var = tk.StringVar(
+            value=self._cfg.get("hotkey_toggle_ball", "ctrl+alt+b"))
+        ctk.CTkEntry(parent, textvariable=self._toggle_hk_var,
+                     placeholder_text="例如  ctrl+alt+b").grid(
+            row=2, column=1, padx=4, pady=(0, 4), sticky="w")
+
+        # 悬浮球自定义图片
+        ctk.CTkLabel(parent, text="悬浮球图片").grid(
+            row=3, column=0, padx=_PAD, pady=(0, 4), sticky="w")
+        self._ball_img_var = tk.StringVar(
+            value=self._cfg.get("ball_image_path", ""))
+        ctk.CTkEntry(parent, textvariable=self._ball_img_var,
+                     placeholder_text="留空则显示默认蓝色圆形").grid(
+            row=3, column=1, padx=4, pady=(0, 4), sticky="ew")
+        btn_img_row = ctk.CTkFrame(parent, fg_color="transparent")
+        btn_img_row.grid(row=3, column=2, padx=(0, _PAD), pady=(0, 4))
+        ctk.CTkButton(btn_img_row, text="浏览", width=54,
+                      command=self._browse_ball_img).pack(side=tk.LEFT, padx=(0, 4))
+        ctk.CTkButton(btn_img_row, text="清除", width=54,
+                      fg_color="#7f8c8d", hover_color="#636e72",
+                      command=lambda: self._ball_img_var.set("")).pack(side=tk.LEFT)
+
         # 开机自启（仅打包后的 exe 有效，开发模式灰显）
         self._autostart_var = tk.BooleanVar(value=utils.get_autostart())
         autostart_cb = ctk.CTkCheckBox(
@@ -211,13 +245,13 @@ class SettingsPanel(ctk.CTkToplevel):
             variable=self._autostart_var,
             state="normal" if utils.is_packaged() else "disabled",
         )
-        autostart_cb.grid(row=2, column=0, columnspan=2,
+        autostart_cb.grid(row=4, column=0, columnspan=2,
                           padx=_PAD, pady=(0, _PAD), sticky="w")
 
         # 保存按钮
         ctk.CTkButton(parent, text="💾  保存配置", width=110,
                       command=self._save_config).grid(
-            row=2, column=2, padx=(0, _PAD), pady=(0, _PAD))
+            row=4, column=2, padx=(0, _PAD), pady=(0, _PAD))
 
     # ══════════════ 预设列表操作 ══════════════
 
@@ -321,19 +355,35 @@ class SettingsPanel(ctk.CTkToplevel):
             messagebox.showerror("错误", "坐标必须是整数", parent=self)
             return
         capture.capture_region(region, self._savedir_var.get().strip())
+        if self._ball:
+            self._ball.notify_capture()
 
     def _browse_dir(self) -> None:
         path = filedialog.askdirectory(title="选择截图保存目录", parent=self)
         if path:
             self._savedir_var.set(path)
 
+    def _browse_ball_img(self) -> None:
+        path = filedialog.askopenfilename(
+            title="选择悬浮球图片",
+            filetypes=[("图片文件", "*.png *.jpg *.jpeg *.webp *.bmp"), ("所有文件", "*.*")],
+            parent=self,
+        )
+        if path:
+            self._ball_img_var.set(path)
+
     def _save_config(self) -> None:
         self._flush_form()
-        self._cfg["save_dir"]      = self._savedir_var.get().strip()
-        self._cfg["hotkey_select"] = self._sel_hk_var.get().strip()
+        self._cfg["save_dir"]           = self._savedir_var.get().strip()
+        self._cfg["hotkey_select"]      = self._sel_hk_var.get().strip()
+        self._cfg["hotkey_toggle_ball"] = self._toggle_hk_var.get().strip()
+        self._cfg["ball_image_path"]    = self._ball_img_var.get().strip()
         os.makedirs(self._cfg["save_dir"], exist_ok=True)
         cfg_module.save(self._cfg)
         self._register_hotkeys()
         self._refresh_preset_list()
         utils.set_autostart(self._autostart_var.get())
+        if self._ball:
+            self._ball.reload_hotkey()
+            self._ball.reload_appearance()
         messagebox.showinfo("已保存", "配置已保存，快捷键已重新注册。", parent=self)

@@ -12,8 +12,10 @@ APP_NAME = "ScreenshotTool"   # 工具正式名确定后统一替换
 DEFAULT_CONFIG: dict = {
     "save_dir": str(Path.home() / "Pictures" / "Screenshots"),
     "hotkey_select": "ctrl+alt+d",
+    "hotkey_toggle_ball": "ctrl+alt+b",   # 显示/隐藏悬浮球
     "ball_x": 100,   # 悬浮球上次位置（物理像素）
     "ball_y": 100,
+    "ball_image_path": "",   # 自定义悬浮球图片（留空则用默认圆形）
     "presets": [
         {
             "name": "预设1",
