@@ -37,6 +37,7 @@ class SettingsPanel(ctk.CTkToplevel):
         self._aq: queue.Queue = queue.Queue()
         self._hk_mgr  = HotkeyManager()
         self._ball    = None   # FloatingBall 引用，由 set_ball() 注入
+        self._pin_mgr = None   # PinManager 引用，由 set_pin_mgr() 注入
 
         self.title("Kang — 设置")
         self.geometry("740x590")
@@ -56,21 +57,41 @@ class SettingsPanel(ctk.CTkToplevel):
         """由 main.py 在 FloatingBall 创建后调用，注入悬浮球引用以发送通知。"""
         self._ball = ball
 
+    def set_pin_mgr(self, pin_mgr) -> None:
+        """由 main.py 注入 PinManager 引用。"""
+        self._pin_mgr = pin_mgr
+
     # ══════════════ 快捷键管理 ══════════════
 
     def _make_fixed_cb(self, region: dict):
         q, r = self._aq, dict(region)
         return lambda: q.put(("fixed", r))
 
+    def _make_fixed_pin_cb(self, region: dict):
+        q, r = self._aq, dict(region)
+        return lambda: q.put(("fixed_pin", r))
+
     def _register_hotkeys(self) -> None:
+        """注册所有截图快捷键（长按 → 贴图，短按 → 普通截图）。"""
         self._hk_mgr.unregister_all()
+        long_ms = self._cfg.get("long_press_ms", 500)
         for p in self._cfg["presets"]:
             hk = p.get("hotkey", "").strip()
             if hk:
-                self._hk_mgr.register(hk, self._make_fixed_cb(p["region"]))
+                self._hk_mgr.register_long_press(
+                    hk,
+                    short_cb=self._make_fixed_cb(p["region"]),
+                    long_cb=self._make_fixed_pin_cb(p["region"]),
+                    long_ms=long_ms,
+                )
         sel_hk = self._cfg.get("hotkey_select", "").strip()
         if sel_hk:
-            self._hk_mgr.register(sel_hk, lambda: self._aq.put(("select",)))
+            self._hk_mgr.register_long_press(
+                sel_hk,
+                short_cb=lambda: self._aq.put(("select",)),
+                long_cb=lambda: self._aq.put(("select_pin",)),
+                long_ms=long_ms,
+            )
 
     def quit_cleanup(self) -> None:
         """程序退出前调用：注销所有快捷键。"""
@@ -83,17 +104,53 @@ class SettingsPanel(ctk.CTkToplevel):
         try:
             while True:
                 act = self._aq.get_nowait()
+
                 if act[0] == "fixed":
-                    capture.capture_region(act[1], self._cfg["save_dir"])
-                    if self._ball:
-                        self._ball.notify_capture()
+                    self._do_capture_region(act[1], pin=False)
+
+                elif act[0] == "fixed_pin":
+                    self._do_capture_region(act[1], pin=True)
+
                 elif act[0] == "select":
-                    ok = capture.capture_select(self, self._cfg["save_dir"])
-                    if ok and self._ball:
-                        self._ball.notify_capture()
+                    self._do_capture_select(pin=False)
+
+                elif act[0] == "select_pin":
+                    self._do_capture_select(pin=True)
+
         except queue.Empty:
             pass
         self.after(20, self._poll_queue)
+
+    def _do_capture_region(self, region: dict, pin: bool) -> None:
+        """固定区域截图（短按 or 长按）。"""
+        hide = self._cfg.get("hide_pins_on_capture", True)
+        if hide and self._pin_mgr:
+            self._pin_mgr.hide_all()
+        path = capture.capture_region(region, self._cfg["save_dir"])
+        if hide and self._pin_mgr:
+            self._pin_mgr.show_all()
+        if self._ball:
+            self._ball.notify_capture()
+        if pin and self._pin_mgr:
+            self._pin_mgr.create_pin_from_file(
+                path, region["left"], region["top"]
+            )
+
+    def _do_capture_select(self, pin: bool) -> None:
+        """框选截图（短按 or 长按）。"""
+        hide = self._cfg.get("hide_pins_on_capture", True)
+        if hide and self._pin_mgr:
+            self._pin_mgr.hide_all()
+        ok, path, region = capture.capture_select(self, self._cfg["save_dir"])
+        if hide and self._pin_mgr:
+            self._pin_mgr.show_all()
+        if ok:
+            if self._ball:
+                self._ball.notify_capture()
+            if pin and self._pin_mgr and path and region:
+                self._pin_mgr.create_pin_from_file(
+                    path, region["left"], region["top"]
+                )
 
     # ══════════════ 构建 UI ══════════════
 

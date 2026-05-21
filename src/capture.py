@@ -36,12 +36,17 @@ def capture_region(region: dict, save_dir: str) -> str:
     return path
 
 
-def capture_select(root: tk.Tk, save_dir: str) -> bool:
-    """弹出框选遮罩，用户拖选后截图保存。返回 True 表示已截图，False 表示已取消。"""
+def capture_select(
+    root: tk.Tk,
+    save_dir: str,
+) -> tuple[bool, str | None, dict | None]:
+    """弹出框选遮罩，用户拖选后截图保存。
+    返回 (success, filepath, region)；取消时返回 (False, None, None)。
+    """
     region = run_selector(root)
     if region:
         time.sleep(0.08)   # 等遮罩从屏幕上完全消失再截图
-        capture_region(region, save_dir)
-        return True
+        path = capture_region(region, save_dir)
+        return True, path, region
     print("[框选] 已取消")
-    return False
+    return False, None, None

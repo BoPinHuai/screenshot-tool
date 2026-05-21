@@ -84,8 +84,9 @@ class FloatingBall(tk.Toplevel):
         self._notify_active = False
 
         # 热键 + 线程安全队列
-        self._aq     = queue.Queue()
-        self._hk_mgr = HotkeyManager()
+        self._aq      = queue.Queue()
+        self._hk_mgr  = HotkeyManager()
+        self._pin_mgr = None   # PinManager，由 set_pin_mgr() 注入
 
         self._setup_window()
         self._build_canvas()
@@ -313,6 +314,10 @@ class FloatingBall(tk.Toplevel):
         color = _COLOR_HOVER if self._hover_active else _COLOR_NORMAL
         self._redraw(color=color, label="截")
 
+    def set_pin_mgr(self, pin_mgr) -> None:
+        """由 main.py 注入 PinManager 引用，用于右键菜单显示贴图数量。"""
+        self._pin_mgr = pin_mgr
+
     def reload_appearance(self) -> None:
         """配置中图片路径变化后调用，重绘悬浮球外观。"""
         if not self._notify_active:
@@ -410,6 +415,24 @@ class FloatingBall(tk.Toplevel):
         menu.add_command(label="⚙  设置",    command=self._open_settings)
         menu.add_command(label="隐藏悬浮球",  command=self.withdraw)
         menu.add_separator()
+
+        # 贴图管理（有贴图时显示）
+        if self._pin_mgr and self._pin_mgr.count() > 0:
+            n = self._pin_mgr.count()
+            menu.add_command(
+                label=f"当前贴图数：{n}",
+                state="disabled",
+            )
+            if self._pin_mgr.is_hidden():
+                menu.add_command(label="显示所有贴图",
+                                 command=self._pin_mgr.show_all)
+            else:
+                menu.add_command(label="隐藏所有贴图",
+                                 command=self._pin_mgr.hide_all)
+            menu.add_command(label="关闭所有贴图",
+                             command=self._pin_mgr.close_all)
+            menu.add_separator()
+
         menu.add_command(label="关于",        command=self._show_about)
         menu.add_command(label="退出",        command=self._on_quit)
         try:

@@ -16,6 +16,9 @@ DEFAULT_CONFIG: dict = {
     "ball_x": 100,   # 悬浮球上次位置（物理像素）
     "ball_y": 100,
     "ball_image_path": "",   # 自定义悬浮球图片（留空则用默认圆形）
+    # ── 贴图高级设置 ──
+    "long_press_ms":   500,    # 长按触发贴图的时长（ms）
+    "hide_pins_on_capture": True,   # 截图前自动隐藏贴图
     "presets": [
         {
             "name": "预设1",

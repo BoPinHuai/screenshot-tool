@@ -1,4 +1,4 @@
-# main.py — Stage 5 入口
+# main.py — Stage 6 入口
 # 运行（开发）：python src/main.py
 # 运行（打包）：直接双击 ScreenshotTool.exe
 #
@@ -9,7 +9,8 @@
 #   4. 创建隐藏 CTk 根窗口
 #   5. 创建 SettingsPanel（初始隐藏）
 #   6. 创建 FloatingBall（常驻桌面）
-#   7. mainloop()
+#   7. 创建 PinManager，注入 SettingsPanel 和 FloatingBall
+#   8. mainloop()
 
 import sys
 import os
@@ -17,10 +18,8 @@ import ctypes
 
 # ── 路径修复：兼容开发模式和 PyInstaller 打包模式 ──────────────────────────────
 if getattr(sys, "frozen", False):
-    # 打包后：模块文件在 PyInstaller 解压的临时目录
     _BASE = sys._MEIPASS
 else:
-    # 开发模式：模块文件在 src/ 目录
     _BASE = os.path.dirname(os.path.abspath(__file__))
 
 sys.path.insert(0, _BASE)
@@ -31,6 +30,7 @@ import customtkinter as ctk
 from utils import ensure_single_instance
 from ui.settings import SettingsPanel
 from ui.floating_ball import FloatingBall
+from ui.pin_manager import PinManager
 
 
 def _set_dpi_awareness() -> None:
@@ -44,7 +44,7 @@ def _set_dpi_awareness() -> None:
 
 
 def main() -> None:
-    ensure_single_instance()      # 多开时直接退出
+    ensure_single_instance()
     _set_dpi_awareness()
 
     cfg = config.load()
@@ -58,10 +58,17 @@ def main() -> None:
     def on_quit() -> None:
         panel.quit_cleanup()
         ball.quit_cleanup()
+        pin_mgr.close_all()
         root.destroy()
 
-    ball = FloatingBall(root, panel, cfg, on_quit)
-    panel.set_ball(ball)    # 注入引用，截图后触发悬浮球通知
+    ball    = FloatingBall(root, panel, cfg, on_quit)
+    pin_mgr = PinManager(root)
+
+    # 各模块互相注入引用
+    panel.set_ball(ball)
+    panel.set_pin_mgr(pin_mgr)
+    ball.set_pin_mgr(pin_mgr)
+
     root.mainloop()
 
 
