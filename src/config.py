@@ -16,13 +16,8 @@ DEFAULT_CONFIG: dict = {
     "ball_x": 100,   # 悬浮球上次位置（物理像素）
     "ball_y": 100,
     "ball_image_path": "",   # 自定义悬浮球图片（留空则用默认圆形）
-    "presets": [
-        {
-            "name": "预设1",
-            "region": {"left": 100, "top": 100, "width": 800, "height": 600},
-            "hotkey": "ctrl+alt+s",
-        }
-    ],
+    "hotkey_fixed":  "ctrl+alt+s",
+    "fixed_region":  {"left": 100, "top": 100, "width": 800, "height": 600},
 }
 
 

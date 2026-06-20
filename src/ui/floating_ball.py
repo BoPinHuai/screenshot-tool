@@ -388,7 +388,7 @@ class FloatingBall(tk.Toplevel):
         by = self.winfo_y()
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
-        pw, ph = 740, 590   # 与 SettingsPanel.geometry 保持一致
+        pw, ph = 600, 390   # 与 SettingsPanel._PANEL_W/H 保持一致
 
         px = bx + self._size + 10
         if px + pw > sw:
